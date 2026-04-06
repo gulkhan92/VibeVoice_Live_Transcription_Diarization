@@ -6,3 +6,4 @@ class StartMessage(BaseModel):
     format: str
     sampleRate: int
     channels: int
+    model: str = "whisper"

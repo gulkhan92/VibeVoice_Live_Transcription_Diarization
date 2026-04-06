@@ -14,11 +14,15 @@ class Settings:
     min_segment_ms: int = 1200
     silence_to_commit_ms: int = 480
     whisper_model_size: str = os.getenv("WHISPER_MODEL_SIZE", "small.en")
+    vibevoice_asr_model_id: str = os.getenv("VIBEVOICE_ASR_MODEL_ID", "microsoft/VibeVoice-ASR")
     diarization_model: str = os.getenv(
         "PYANNOTE_DIARIZATION_MODEL", "pyannote/speaker-diarization-3.1"
     )
     hf_token: str | None = os.getenv("HF_TOKEN")
     device: str = os.getenv("TORCH_DEVICE", "cpu")
+    vibevoice_repo_path: str | None = os.getenv("VIBEVOICE_REPO_PATH")
+    vibevoice_tts_model_path: str | None = os.getenv("VIBEVOICE_TTS_MODEL_PATH")
+    python_bin: str = os.getenv("PYTHON_BIN", "python3")
 
 
 settings = Settings()

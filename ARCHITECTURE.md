@@ -1,4 +1,4 @@
-# Live Transcription & Diarization Architecture
+# Speech Workspace Architecture
 
 ## Why this pipeline
 
@@ -10,6 +10,7 @@ This design is optimized for:
 - stable partial text
 - better speaker attribution on final text
 - compatibility with a single shared microphone
+- shared logic across Whisper and VibeVoice-ASR
 
 ## Chunking strategy
 
@@ -40,16 +41,23 @@ Why this commit rule:
 - hard-capping long speech turns prevents unbounded buffering
 - 1.2 s minimum segment length avoids committing fragments too early
 
-### ASR windowing
+### ASR windowing and model selection
 
 - Partial ASR uses the latest 2.4 s window with overlap.
 - Final ASR runs on the committed speech segment.
+- The same live pipeline is reused for both `whisper` and `vibevoice_asr`.
 
 Why overlapping windows:
 
 - Whisper-style models transcribe better with local context than with isolated tiny chunks
 - a rolling 2-3 s context keeps latency low while preserving phrase continuity
 - final decode on the whole committed segment improves punctuation and lexical accuracy
+
+Why wrap both models the same way:
+
+- neither model is treated as a native browser-live API
+- keeping VAD and commit logic outside the model makes model swaps cheaper
+- diarization quality stays consistent because speaker attribution is handled after ASR
 
 ### Diarization
 
@@ -65,15 +73,36 @@ Why diarize on committed windows instead of raw packets:
 ## Data flow
 
 1. Browser captures microphone audio with `AudioWorklet`.
-2. Frontend downsamples to 16 kHz mono PCM and sends 200 ms binary frames to `ws://.../ws/live`.
-3. Backend appends PCM frames to a session buffer.
-4. WebRTC VAD marks speech boundaries from 20 ms frames.
-5. While speech is active, the backend emits rolling partial transcript updates.
-6. When a segment is committed, the backend runs:
+2. Frontend lets the user select `Whisper` or `VibeVoice-ASR`.
+3. Frontend downsamples to 16 kHz mono PCM and sends 200 ms binary frames to `ws://.../ws/live`.
+4. Backend appends PCM frames to a session buffer.
+5. WebRTC VAD marks speech boundaries from 20 ms frames.
+6. While speech is active, the backend emits rolling partial transcript updates.
+7. Partial windows are decoded by the selected ASR provider.
+8. When a segment is committed, the backend runs:
    - final ASR on the segment
    - diarization on the segment
-7. Backend aligns ASR segments to speaker turns and emits final transcript items.
-8. Frontend renders speaker A on the left and speaker B on the right.
+9. Backend aligns ASR segments to speaker turns and emits final transcript items.
+10. Frontend renders speaker A on the left and speaker B on the right.
+
+## Batch transcription flow
+
+1. User uploads an audio file and chooses `Whisper` or `VibeVoice-ASR`.
+2. Backend decodes audio into mono float waveform.
+3. Selected ASR provider transcribes the full file.
+4. Pyannote diarization runs on the same waveform.
+5. Frontend displays both the merged transcript and speaker-attributed segments.
+
+## Document-to-speech flow
+
+1. User uploads `.txt`, `.pdf`, or `.docx` plus a reference voice sample.
+2. Backend extracts text from the document.
+3. Backend passes extracted text and the reference voice sample to the VibeVoice TTS adapter.
+4. Generated WAV audio is stored server-side and returned with playback and download URLs.
+
+Important constraint:
+
+- voice cloning is wired to the long-form VibeVoice path, not the lightweight realtime preset path
 
 ## Research notes
 

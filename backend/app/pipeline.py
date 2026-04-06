@@ -8,7 +8,7 @@ import numpy as np
 import webrtcvad
 from fastapi import WebSocket
 
-from .asr import WhisperStreamingASR
+from .asr import ASRProvider
 from .config import Settings
 from .diarization import SpeakerDiarizer
 
@@ -20,11 +20,16 @@ class SegmentWindow:
 
 
 class StreamingPipeline:
-    def __init__(self, websocket: WebSocket, settings: Settings) -> None:
+    def __init__(
+        self,
+        websocket: WebSocket,
+        settings: Settings,
+        asr_provider: ASRProvider,
+    ) -> None:
         self.websocket = websocket
         self.settings = settings
+        self.asr_provider = asr_provider
         self.session_id = str(uuid.uuid4())
-        self.asr = WhisperStreamingASR(settings.whisper_model_size, settings.device)
         self.diarizer = SpeakerDiarizer(
             settings.diarization_model, settings.hf_token, settings.device
         )
@@ -41,7 +46,7 @@ class StreamingPipeline:
             {
                 "type": "status",
                 "state": "idle",
-                "message": "Microphone connected. Waiting for speech."
+                "message": f"Microphone connected. Waiting for speech with {self.asr_provider.name}."
             }
         )
 
@@ -87,7 +92,9 @@ class StreamingPipeline:
         if window.size == 0:
             return
 
-        segments = self.asr.transcribe(window.astype(np.float32) / 32768.0, self.settings.sample_rate)
+        segments = self.asr_provider.transcribe(
+            window.astype(np.float32) / 32768.0, self.settings.sample_rate
+        )
         text = " ".join(segment.text for segment in segments).strip()
         if not text:
             return
@@ -140,7 +147,7 @@ class StreamingPipeline:
 
         waveform = audio.astype(np.float32) / 32768.0
         diarization_turns = self.diarizer.diarize(waveform, self.settings.sample_rate)
-        segments = self.asr.transcribe(waveform, self.settings.sample_rate)
+        segments = self.asr_provider.transcribe(waveform, self.settings.sample_rate)
 
         for segment in segments:
             speaker = self.diarizer.speaker_for_span(

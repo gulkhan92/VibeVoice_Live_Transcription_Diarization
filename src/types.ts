@@ -1,3 +1,11 @@
+export type ModelInfo = {
+  id: string;
+  label: string;
+  available: boolean;
+  kind: string;
+  note?: string;
+};
+
 export type ServerEvent =
   | {
       type: "session.ready";
@@ -35,4 +43,22 @@ export type TranscriptMessage = {
   startedAtMs: number;
   endedAtMs: number;
   final: boolean;
+};
+
+export type FileTranscriptResponse = {
+  model: string;
+  text: string;
+  segments: Array<{
+    speaker: string;
+    text: string;
+    startedAtMs: number;
+    endedAtMs: number;
+  }>;
+};
+
+export type TtsResponse = {
+  speaker: string;
+  textPreview: string;
+  audioUrl: string;
+  downloadUrl: string;
 };
